@@ -1,10 +1,9 @@
-# JPCC-RANDOM-PICKER
+﻿# JPCC-RANDOM-PICKER
 <!-- Badges -->
-![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![CI](https://github.com/AI-NOSUKE/JPCC-RANDOM-PICKER/actions/workflows/ci.yml/badge.svg)](https://github.com/AI-NOSUKE/JPCC-RANDOM-PICKER/actions/workflows/ci.yml)
 [![GitHub release](https://img.shields.io/github/v/release/AI-NOSUKE/JPCC-RANDOM-PICKER)](https://github.com/AI-NOSUKE/JPCC-RANDOM-PICKER/releases)
-
+[![License: JPCC-Limited-License](https://img.shields.io/badge/License-JPCC--Limited--License-green)](docs/License_FAQ_JA.md)
+![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)
 
 
 巨大データセットから指定のキーワードを含むテキストを「ランダム」に高速抽出する、次世代型ピッカーです。  
@@ -230,8 +229,10 @@ A. ネットワークエラーは自動リトライ。少数なら問題なし�
 
 ## 📜 ライセンス
 
-MIT License のもとで自由に利用可能です。  
+このリポジトリは **JPCC-Limited-License（独自ライセンス）** に基づいて提供されています。MITなどのOSSライセンスではなく、**商用利用・再配布に制限があります**。  
 ※ JPCC データセット自体の利用には、データ提供者（ABEJA / Common Crawl）の利用規約が適用されます。
+
+📘 **必ずご確認ください：** [`docs/License_FAQ_JA.md`](docs/License_FAQ_JA.md)
 
 ---
 
