@@ -11,7 +11,7 @@
 Japanese Common Crawl (JPCC) データセット（2019–2023年）から、キーワードを含む文章を偏りなくランダム抽出できます。
 
 👉JPCC-RANDOM-PICKERで抽出したテキストを、PVMで分類した活用例レポート：ももクロ関連コメントの分類を例に実施
-       https://github.com/AI-NOSUKE/PVM/blob/main/docs/momoclo_report.md ,(Guitub内のPVMのページにリンクしています) 
+https://github.com/AI-NOSUKE/PVM/blob/main/docs/momoclo_report.md ,(Guitub内のPVMのページにリンクしています) 
 
 ---
 
