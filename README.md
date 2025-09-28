@@ -1,7 +1,17 @@
 # JPCC-RANDOM-PICKER
+<!-- Badges -->
+![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![CI](https://github.com/AI-NOSUKE/JPCC-RANDOM-PICKER/actions/workflows/ci.yml/badge.svg)](https://github.com/AI-NOSUKE/JPCC-RANDOM-PICKER/actions/workflows/ci.yml)
+[![GitHub release](https://img.shields.io/github/v/release/AI-NOSUKE/JPCC-RANDOM-PICKER)](https://github.com/AI-NOSUKE/JPCC-RANDOM-PICKER/releases)
 
-巨大データセットから「真にランダムな」サンプルを高速抽出する、次世代型ピッカーです。  
+
+
+巨大データセットから指定のキーワードを含むテキストを「ランダム」に高速抽出する、次世代型ピッカーです。  
 Japanese Common Crawl (JPCC) データセット（2019–2023年）から、キーワードを含む文章を偏りなくランダム抽出できます。
+
+👉JPCC-RANDOM-PICKERで抽出したテキストを、PVMで分類した活用例レポート：ももクロ関連コメントの分類を例に実施
+https://github.com/AI-NOSUKE/PVM/blob/main/docs/momoclo_report.md ,(Guitub内のPVMのページにリンクしています) 
 
 ---
 
