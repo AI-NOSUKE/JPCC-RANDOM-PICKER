@@ -25,6 +25,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -34,23 +35,23 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      # CIだけ設定を最小化（limit/max_workersを差し替え）
       - name: Patch CONFIG for fast CI (limit/max_workers)
         run: |
           python - <<'PY'
-          from pathlib import Path, re
+          from pathlib import Path
+          import re
           p = Path('jpcc-random-picker.py')
           t = p.read_text(encoding='utf-8')
           t = re.sub(r'("limit"\s*:\s*)\d+', r'\1 1', t)
           t = re.sub(r'("max_workers"\s*:\s*)\d+', r'\1 2', t)
           p.write_text(t, encoding='utf-8')
           for k in ("limit","max_workers"):
-              import re as _r
-              m=_r.search(rf'"{k}"\s*:\s*(\d+)', t)
+              m = re.search(rf'"{k}"\s*:\s*(\d+)', t)
               print(f'patched {k} = {m.group(1) if m else "N/A"}')
           PY
 
       - name: Run picker (fast CI mode)
-        timeout-minutes: 5
         run: python jpcc-random-picker.py
 
       - name: Check output
