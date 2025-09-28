@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # 🔧 CIだけ設定を最小化（Py本体は変更しない）
+      - name: Patch CONFIG for fast CI (limit/trials/target/max_workers)
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path('jpcc-random-picker.py')
+          t = p.read_text(encoding='utf-8')
+
+          # "limit": 1
+          t = re.sub(r'("limit"\s*:\s*)\d+', r'\1 1', t)
+          # "trials": 1
+          t = re.sub(r'("trials"\s*:\s*)\d+', r'\1 1', t)
+          # "target": 1  （quota=target/trials も1になる）
+          t = re.sub(r'("target"\s*:\s*)\d+', r'\1 1', t)
+          # "max_workers": 2  （CIで過剰な並列を避ける）
+          t = re.sub(r'("max_workers"\s*:\s*)\d+', r'\1 2', t)
+
+          Path('jpcc-random-picker.py').write_text(t, encoding='utf-8')
+
+          # 置換結果をログに出して確認（該当行だけ）
+          for k in ("limit", "trials", "target", "max_workers"):
+              m = re.search(rf'"{k}"\s*:\s*(\d+)', t)
+              print(f'patched {k} = {m.group(1) if m else "N/A"}')
+          PY
+
+      - name: Run picker (fast CI mode)
+        run: python jpcc-random-picker.py
+
+      - name: Check output
+        run: |
+          test -f output.csv
+          head -n 5 output.csv || true

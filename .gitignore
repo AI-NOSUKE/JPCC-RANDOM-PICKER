@@ -1,0 +1,33 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pytest_cache/
+
+# Virtual envs
+.venv/
+venv/
+
+# Build / dist
+build/
+dist/
+*.egg-info/
+
+# Editors / OS trash
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Project outputs
+output.csv
+
+# Coverage / tools
+.coverage
+htmlcov/
+.mypy_cache/
+
+# Local Python version managers
+.python-version
