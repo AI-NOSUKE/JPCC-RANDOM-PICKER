@@ -1,25 +1,16 @@
-MIT License
+JPCC-PICKER 利用に関する FAQ（日本語版）
 
-Copyright (c) 2025
+Q. 研究目的で使う場合は無料ですか？  
+A. はい、個人利用または研究目的であれば無料でご利用いただけます。
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+Q. 社内ツールとして使いたい場合は？  
+A. 抽出件数が1000件までなら無料で検証可能です。それ以上の利用には15万円の商用ライセンスが必要です。
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+Q. クライアントへの提供や成果物の共有は？  
+A. PoC用途であっても、外部提供する場合は30万円の商用ライセンスが必要です。
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+Q. ライセンスの支払い方法は？  
+A. Stripe または個別請求書による対応が可能です（詳細は個別連絡にて）。
 
-Note: This license applies to the software code in this repository only.
-It does not grant any rights to external datasets (e.g., ABEJA-CC-JA / Common Crawl).
-Please comply with the data providers' terms of use.
+Q. 連絡先は？  
+A. GitHubの「AI-NOSUKE」アカウントに Issue または Discussions にてご連絡ください。
