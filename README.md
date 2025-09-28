@@ -1,4 +1,13 @@
 # JPCC-RANDOM-PICKER
+<!-- Badges -->
+[![CI](https://github.com/AI-NOSUKE/JPCC-RANDOM-PICKER/actions/workflows/ci.yml/badge.svg)](https://github.com/AI-NOSUKE/JPCC-RANDOM-PICKER/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)
+![OS](https://img.shields.io/badge/OS-Windows%20%7C%20Linux-lightgrey.svg)
+![Deps](https://img.shields.io/badge/deps-boto3%20%7C%20orjson-informational.svg)
+![Last commit](https://img.shields.io/github/last-commit/AI-NOSUKE/JPCC-RANDOM-PICKER)
+![Stars](https://img.shields.io/github/stars/AI-NOSUKE/JPCC-RANDOM-PICKER?style=social)
+
 
 巨大データセットから「真にランダムな」サンプルを高速抽出する、次世代型ピッカーです。  
 Japanese Common Crawl (JPCC) データセット（2019–2023年）から、キーワードを含む文章を偏りなくランダム抽出できます。
