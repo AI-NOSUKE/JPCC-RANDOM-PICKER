@@ -244,6 +244,6 @@ MIT License のもとで自由に利用可能です。
 
 ## 🔗 関連プロジェクト
 
-- [JPCC-PICKER](https://github.com/AI-NOSUKE/JPCC-PICKER) – 精密版（表記ゆれ対応）  
-- [JPCC-RAPID-PICKER](https://github.com/AI-NOSUKE/JPCC-RAPID-PICKER) – 高速版（シンプル設計）  
-- [ABEJA-CC-JA](https://abeja.io) – データセット公式情報
+- [JPCC-PICKER](https://github.com/AI-NOSUKE/JPCC-PICKER) – 精密版（表記ゆれ対応）
+- [JPCC-RAPID-PICKER](https://github.com/AI-NOSUKE/JPCC-RAPID-PICKER) – 高速版（シンプル設計）
+- [ABEJA-CC-JA – データセット公式情報](https://aws.amazon.com/marketplace/pp/prodview-nh5gwwr7rhqrq)  （AWS Marketplace / ABEJA公式公開ページ）
