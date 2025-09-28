@@ -35,19 +35,32 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # CIだけ limit/max_workers を最小化
-      - name: Patch CONFIG for fast CI (limit/max_workers)
+      # CIだけ limit/processes を最小化
+      - name: Patch CONFIG for fast CI (limit/processes)
         run: |
           python - <<'PY'
           from pathlib import Path
           import re
           p = Path('jpcc-random-picker.py')
           t = p.read_text(encoding='utf-8')
+          
+          # limit を 1 に
           t = re.sub(r'("limit"\s*:\s*)\d+', r'\1 1', t)
-          t = re.sub(r'("max_workers"\s*:\s*)\d+', r'\1 2', t)
+          
+          # processes を 1 に（cpu_count()も含めて置換）
+          t = re.sub(r'("processes"\s*:\s*)(cpu_count\(\)|[\d]+)', r'\1 1', t)
+          
+          # ダウンローダーも 1 に
+          t = re.sub(r'("num_downloaders"\s*:\s*)\d+', r'\1 1', t)
+          
+          # gzipスキップも最小化（早く処理開始）
+          t = re.sub(r'("max_gz_skip"\s*:\s*)[0-9_]+', r'\1 100', t)
+          
           p.write_text(t, encoding='utf-8')
-          for k in ("limit","max_workers"):
-              m = re.search(rf'"{k}"\s*:\s*(\d+)', t)
+          
+          # 確認出力
+          for k in ("limit", "processes", "num_downloaders", "max_gz_skip"):
+              m = re.search(rf'"{k}"\s*:\s*(\w+)', t)
               print(f'patched {k} = {m.group(1) if m else "N/A"}')
           PY
 
