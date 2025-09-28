@@ -35,7 +35,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # CIだけ設定を最小化（limit/max_workersを差し替え）
+      # CIだけ limit/max_workers を最小化
       - name: Patch CONFIG for fast CI (limit/max_workers)
         run: |
           python - <<'PY'
@@ -51,12 +51,15 @@ jobs:
               print(f'patched {k} = {m.group(1) if m else "N/A"}')
           PY
 
+      # picker 実行（必ず終了させる：2分で強制終了）
       - name: Run picker (fast CI mode)
-        run: python jpcc-random-picker.py
+        run: |
+          timeout 2m python jpcc-random-picker.py
+        continue-on-error: false
 
       - name: Check output
         if: always()
         run: |
           test -f output.csv
-          wc -l output.csv || true
-          head -n 5 output.csv || true
+          wc -l output.csv
+          head -n 5 output.csv
