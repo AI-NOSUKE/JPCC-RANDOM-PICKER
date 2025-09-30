@@ -1,4 +1,4 @@
-﻿# JPCC-RANDOM-PICKER
+# JPCC-RANDOM-PICKER
 <!-- Badges -->
 [![CI](https://github.com/AI-NOSUKE/JPCC-RANDOM-PICKER/actions/workflows/ci.yml/badge.svg)](https://github.com/AI-NOSUKE/JPCC-RANDOM-PICKER/actions/workflows/ci.yml)
 [![GitHub release](https://img.shields.io/github/v/release/AI-NOSUKE/JPCC-RANDOM-PICKER)](https://github.com/AI-NOSUKE/JPCC-RANDOM-PICKER/releases)
@@ -174,6 +174,7 @@ z9y8x7w6v5u4t3s2,ももいろクローバーZの新曲がリリースされま�
 ## 🚀 使用例
 
 ### 大規模な言説調査
+※ 以下の設定を CONFIG で上書きします（他の項目はデフォルト値を使用）
 ```python
 CONFIG = {
     "keywords": ["ChatGPT", "生成AI", "人工知能"],
@@ -185,6 +186,7 @@ CONFIG = {
 ```
 
 ### 特定商品の評判分析
+※ 以下の設定を CONFIG で上書きします（他の項目はデフォルト値を使用）
 ```python
 CONFIG = {
     "keywords": ["iPhone", "アイフォン"],
@@ -196,6 +198,7 @@ CONFIG = {
 ```
 
 ### 地域情報の収集
+※ 以下の設定を CONFIG で上書きします（他の項目はデフォルト値を使用）
 ```python
 CONFIG = {
     "keywords": ["渋谷", "原宿", "表参道"],
@@ -223,7 +226,7 @@ A. ストリーミング処理のため、通常 1〜2GB 程度で安定。
 A. `seed` が同じなら再現可能。
 
 **Q. エラーが出た場合は？**  
-A. ネットワークエラーは自動リトライ。少数なら問題なし。
+A. ネットワークエラーは boto3 が自動リトライします（最大5回）。JSON パースエラーなどは該当行をスキップし、Errors カウントに計上されます。少数のエラーであれば処理は継続されます。
 
 ---
 
