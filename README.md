@@ -8,6 +8,10 @@ ABEJA-CC-JA の公開 S3 バケットにある日本語 Common Crawl 由来 JSON
 
 この版は `v1.4-best-abeja` として、データソースを ABEJA-CC-JA 専用に整理しています。巨大な全件データをローカルへ落とさず、S3 上の JSONL / JSONL.GZ を部分的に読みながら候補を集めます。
 
+## 活用例
+
+同種の JPCC 抽出テキストを PVM で分類した例として、[ももクロ関連コメントの分類レポート](https://github.com/AI-NOSUKE/PVM/blob/main/docs/momoclo_report.md) があります。現行の `v1.4-best-abeja` と完全に同じコードによる出力ではありませんが、本ツールで得られるテキストを分析へつなげる用途の参考になります。
+
 ## 特徴
 
 - 複数キーワードの OR 検索
