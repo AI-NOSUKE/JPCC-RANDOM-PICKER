@@ -1,5 +1,9 @@
 # JPCC-RANDOM-PICKER
 
+[![CI](https://github.com/AI-NOSUKE/JPCC-RANDOM-PICKER/actions/workflows/ci.yml/badge.svg)](https://github.com/AI-NOSUKE/JPCC-RANDOM-PICKER/actions/workflows/ci.yml)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
+[![License: Custom](https://img.shields.io/badge/license-custom-lightgrey.svg)](LICENSE)
+
 ABEJA-CC-JA の公開 S3 バケットにある日本語 Common Crawl 由来 JSONL から、指定キーワードを含む文章をランダム性を高めて抽出し、CSV に保存する Python ツールです。
 
 この版は `v1.4-best-abeja` として、データソースを ABEJA-CC-JA 専用に整理しています。巨大な全件データをローカルへ落とさず、S3 上の JSONL / JSONL.GZ を部分的に読みながら候補を集めます。

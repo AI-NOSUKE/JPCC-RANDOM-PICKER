@@ -32,3 +32,10 @@ jobs:
 
       - name: Check CLI help
         run: python jpcc-random-picker.py --help
+
+      - name: Check invalid arguments
+        run: |
+          if python jpcc-random-picker.py -k test -n -1; then
+            echo "negative limit should fail"
+            exit 1
+          fi

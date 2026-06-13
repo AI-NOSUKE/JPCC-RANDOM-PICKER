@@ -17,11 +17,11 @@ ABEJA-CC-JA(S3上の日本語Common Crawl由来JSONL)から、
 
 【使い方】
 対話モード:
-    python jpcc-random-picker-v1.4-best-abeja.py
+    python jpcc-random-picker.py
     -> キーワードと件数を聞かれるので入力するだけ。
 
 引数モード:
-    python jpcc-random-picker-v1.4-best-abeja.py -k ももクロ ももいろクローバーZ -n 1000
+    python jpcc-random-picker.py -k ももクロ ももいろクローバーZ -n 1000
     オプション:
         -o / --outfile              出力CSV (default: output.csv)
         --max-minutes               時間上限・分 (default: 15)
@@ -705,6 +705,26 @@ def push_candidate(
     return False
 
 
+def write_rows_atomic(outfile: str, rows: List[Dict[str, Any]]) -> None:
+    """CSVを一時ファイルへ書いてから置き換え、既存出力の消失を避ける。"""
+    abs_outfile = os.path.abspath(outfile)
+    out_dir = os.path.dirname(abs_outfile)
+    tmp_path = os.path.join(out_dir, f".{os.path.basename(outfile)}.tmp")
+
+    with open(tmp_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["id", "url", "text", "char_len"])
+        for row in rows:
+            writer.writerow([
+                row.get("id", ""),
+                row.get("url", ""),
+                row.get("text", ""),
+                row.get("char_len", ""),
+            ])
+
+    os.replace(tmp_path, abs_outfile)
+
+
 # ===============================================================
 # 入力処理
 # ===============================================================
@@ -731,16 +751,34 @@ def timed_input(prompt: str, timeout_sec: float) -> Optional[str]:
 
 
 def parse_user_input():
+    def positive_int(value: str) -> int:
+        try:
+            n = int(value.replace(",", ""))
+        except ValueError as exc:
+            raise argparse.ArgumentTypeError("正の整数を指定してください") from exc
+        if n <= 0:
+            raise argparse.ArgumentTypeError("正の整数を指定してください")
+        return n
+
+    def positive_float(value: str) -> float:
+        try:
+            n = float(value)
+        except ValueError as exc:
+            raise argparse.ArgumentTypeError("正の数値を指定してください") from exc
+        if n <= 0:
+            raise argparse.ArgumentTypeError("正の数値を指定してください")
+        return n
+
     p = argparse.ArgumentParser(
         description="JPCCからキーワードを含む文章をランダム抽出してCSV保存します。"
     )
     p.add_argument("-k", "--keywords", nargs="+",
                    help="検索キーワード(複数指定でOR検索)")
-    p.add_argument("-n", "--limit", type=int, help="出力件数")
+    p.add_argument("-n", "--limit", type=positive_int, help="出力件数")
     p.add_argument("-o", "--outfile", default="output.csv", help="出力CSVファイル名")
-    p.add_argument("--max-minutes", type=float, default=15.0,
+    p.add_argument("--max-minutes", type=positive_float, default=15.0,
                    help="時間上限(分)。超えたら途中結果で打ち切り (default: 15)")
-    p.add_argument("--oversample-factor", type=float, default=3.0,
+    p.add_argument("--oversample-factor", type=positive_float, default=3.0,
                    help="指定件数の何倍まで候補を確認してから乱数スコアで絞るか。速度優先なら1 (default: 3.0)")
     args = p.parse_args()
 
@@ -787,9 +825,6 @@ def run():
     ui.start()
     ui.log("STEP1: 初期化中...")
 
-    if os.path.exists(CONFIG["outfile"]):
-        os.remove(CONFIG["outfile"])
-
     def list_abeja_objects() -> List[Tuple[str, int]]:
         if boto3 is None:
             raise RuntimeError("boto3が未インストールです (pip install boto3)")
@@ -803,7 +838,12 @@ def run():
         ]
 
     ui.log("STEP2: S3リスト取得中 (abeja-cc-ja)...")
-    all_objects: List[Tuple[str, int]] = list_abeja_objects()
+    try:
+        all_objects: List[Tuple[str, int]] = list_abeja_objects()
+    except Exception as e:
+        ui.stop()
+        print(f"データソースのファイル一覧を取得できませんでした: {e}")
+        sys.exit(1)
 
     if not all_objects:
         ui.stop()
@@ -960,16 +1000,7 @@ def run():
             for item in sorted(sample_heap, key=lambda x: -x[0])
         ]
 
-        with open(CONFIG["outfile"], "w", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)
-            writer.writerow(["id", "url", "text", "char_len"])
-            for row in rows:
-                writer.writerow([
-                    row.get("id", ""),
-                    row.get("url", ""),
-                    row.get("text", ""),
-                    row.get("char_len", ""),
-                ])
+        write_rows_atomic(CONFIG["outfile"], rows)
 
         ui.set_sample_size(len(rows))
         ui.set_candidate_count(unique_candidates_seen)
