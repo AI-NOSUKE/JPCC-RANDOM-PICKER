@@ -146,5 +146,6 @@ python -m pip install -r requirements.txt
 ## ライセンス
 
 このリポジトリは独自ライセンスで提供されています。詳細は [`LICENSE`](LICENSE) と [`docs/License_FAQ_JA.md`](docs/License_FAQ_JA.md) を確認してください。
+このリポジトリは公開されていますが、オープンソースライセンスではありません。
 
 ABEJA-CC-JA および Common Crawl 由来データの利用条件は、各データ提供元の規約に従ってください。

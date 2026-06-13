@@ -360,7 +360,7 @@ class UIManager:
               else "=== JPCC Random Picker v1.4-best-abeja ===")
         with self.lock:
             remain = max(0, int(self.deadline - time.time()))
-            print(f"  PASS: {self.current_pass}/{CONFIG['max_passes']}"
+            print(f"  SUPPLY PASS: {self.current_pass}/{CONFIG['max_passes']}"
                   f"  | FILE WINDOWS: {self.files_processed} / {self.total_files}"
                   f"  | 残り時間上限: {remain//60}m{remain%60:02d}s")
             for i in range(self.num_workers):
@@ -528,7 +528,7 @@ def feeder_thread(
             break
         ui.set_pass(pass_no)
         if pass_no > 1:
-            ui.log(f"件数未達のためPASS {pass_no} を開始(別ウィンドウ位置で再走査)")
+            ui.log(f"件数未達のため供給PASS {pass_no} を開始(別ウィンドウ位置で再走査)")
 
         order = list(all_objects)
         random.Random(stable_int(f"{CONFIG['seed']}::pass{pass_no}")).shuffle(order)
@@ -828,7 +828,10 @@ def run():
     def list_abeja_objects() -> List[Tuple[str, int]]:
         if boto3 is None:
             raise RuntimeError("boto3が未インストールです (pip install boto3)")
-        s3_lister = boto3.client("s3", config=Config(signature_version=UNSIGNED))
+        s3_lister = boto3.client(
+            "s3",
+            config=Config(signature_version=UNSIGNED, retries={"max_attempts": 5}),
+        )
         paginator = s3_lister.get_paginator("list_objects_v2")
         return [
             (obj["Key"], int(obj.get("Size") or 0))
@@ -838,11 +841,26 @@ def run():
         ]
 
     ui.log("STEP2: S3リスト取得中 (abeja-cc-ja)...")
-    try:
-        all_objects: List[Tuple[str, int]] = list_abeja_objects()
-    except Exception as e:
+    all_objects: List[Tuple[str, int]] = []
+    last_list_error: Optional[Exception] = None
+    for attempt in range(1, 4):
+        try:
+            all_objects = list_abeja_objects()
+            last_list_error = None
+            break
+        except Exception as e:
+            last_list_error = e
+            if attempt >= 3:
+                break
+            ui.log(
+                f"S3リスト取得に失敗。再試行します... "
+                f"({attempt}/3: {e.__class__.__name__})"
+            )
+            time.sleep(attempt)
+
+    if last_list_error is not None:
         ui.stop()
-        print(f"データソースのファイル一覧を取得できませんでした: {e}")
+        print(f"データソースのファイル一覧を取得できませんでした: {last_list_error}")
         sys.exit(1)
 
     if not all_objects:
