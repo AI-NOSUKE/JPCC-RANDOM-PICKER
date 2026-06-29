@@ -2,11 +2,12 @@
 # -*- coding: utf-8 -*-
 
 """
-JPCC-RANDOM-PICKER v1.4-best-abeja
+JPCC-RANDOM-PICKER v1.5-output-info
 
 【概要】
 ABEJA-CC-JA(S3上の日本語Common Crawl由来JSONL)から、
-「指定キーワードを含む日本語文章」を低メモリかつランダム性を高めて抽出し、CSV保存します。
+「指定キーワードを含む日本語文章」を低メモリかつランダム性を高めて抽出し、
+CSVと実行メモを保存します。
 
 【データソース】
 - abeja-cc-ja: ABEJAがCommon Crawlを前処理して構築した日本語Webコーパス。
@@ -26,6 +27,10 @@ ABEJA-CC-JA(S3上の日本語Common Crawl由来JSONL)から、
         -o / --outfile              出力CSV (default: output.csv)
         --max-minutes               時間上限・分 (default: 15)
         --oversample-factor         候補を何倍まで集めてから乱数スコアで絞るか (default: 3.0)
+
+【v1.5-output-infoの修正点】
+- v1.4-best-abejaの抽出ロジックを維持しつつ、CSVにmatched_keywords列を追加。
+- CSVと同じ場所に、検索条件・実行条件・結果を記録した*_info.txtを出力。
 
 【v1.4-best-abejaの修正点】
 - データソースをABEJA-CC-JA専用に整理。FineWeb-2関連の分岐・依存を削除。
@@ -67,6 +72,7 @@ import itertools
 import heapq
 import queue
 import threading
+from datetime import datetime
 from typing import List, Dict, Any, Generator, Tuple, Optional
 
 from multiprocessing import Pool, cpu_count, Manager
@@ -85,6 +91,15 @@ try:
     import orjson as json_lib
 except ImportError:
     import json as json_lib
+
+SCRIPT_VERSION = "v1.5-output-info"
+DATASET_NAME = "ABEJA-CC-JA"
+DATA_BUCKET = "abeja-cc-ja"
+TARGET_PERIOD = "2019〜2023年のCommon Crawl由来データ"
+DATA_SOURCE_NOTE = (
+    "ABEJA-CC-JAの前処理を通った日本語Webテキスト。"
+    "日本語生活者全体やSNS発話全体の代表サンプルではない。"
+)
 
 # ===============================================================
 # 設定
@@ -109,7 +124,7 @@ CONFIG = {
     "oversample_factor": 3.0,          # 候補確認数 = limit * oversample_factor
 
     # --- データソース ---
-    "bucket": "abeja-cc-ja",          # ABEJA-CC-JAのS3バケット名
+    "bucket": DATA_BUCKET,            # ABEJA-CC-JAのS3バケット名
 
     # ランダムウィンドウ抽出設定(非圧縮JSONL)
     "window_bytes": 4 * 1024 * 1024,   # 1ウィンドウの最大取得量
@@ -142,7 +157,9 @@ _TEXT_KEYS = [
     "raw_text", "message", "desc", "description",
 ]
 
-PAT_BYTES, KEYWORDS_NFKC, TEXT_KEYS, G_STATUS_QUEUE = None, tuple(), tuple(_TEXT_KEYS), None
+PAT_BYTES, KEYWORDS_NFKC, KEYWORD_MATCHERS, TEXT_KEYS, G_STATUS_QUEUE = (
+    None, tuple(), tuple(), tuple(_TEXT_KEYS), None
+)
 
 
 def stable_int(value: str, *, bytes_len: int = 16) -> int:
@@ -223,13 +240,27 @@ def keyword_byte_variants(keywords: List[str]) -> List[bytes]:
     return sorted(variants)
 
 
+def normalize_for_match(value: str) -> str:
+    """キーワード判定用にNFKC正規化し、casefoldする。"""
+    return unicodedata.normalize("NFKC", value).casefold()
+
+
+def build_keyword_matchers(keywords: List[str]) -> Tuple[Tuple[str, str], ...]:
+    """ユーザー指定順を保ったまま、表示用原文と判定用文字列の組を作る。"""
+    return tuple(
+        (kw, normalize_for_match(kw))
+        for kw in keywords
+        if kw
+    )
+
+
 def initializer(status_q, config_snapshot: Dict[str, Any]):
     """worker初期化。
 
     macOS/Windowsのspawn環境では、親プロセスで更新したCONFIGが子プロセスに
     自動では反映されない。必ずsnapshotを受け取って更新する。
     """
-    global CONFIG, PAT_BYTES, KEYWORDS_NFKC, G_STATUS_QUEUE
+    global CONFIG, PAT_BYTES, KEYWORDS_NFKC, KEYWORD_MATCHERS, G_STATUS_QUEUE
     CONFIG.update(config_snapshot)
     G_STATUS_QUEUE = status_q
 
@@ -239,11 +270,8 @@ def initializer(status_q, config_snapshot: Dict[str, Any]):
     else:
         PAT_BYTES = None
 
-    KEYWORDS_NFKC = tuple(
-        unicodedata.normalize("NFKC", kw).casefold()
-        for kw in CONFIG["keywords"]
-        if kw
-    )
+    KEYWORD_MATCHERS = build_keyword_matchers(CONFIG["keywords"])
+    KEYWORDS_NFKC = tuple(norm for _, norm in KEYWORD_MATCHERS)
 
 
 # ===============================================================
@@ -356,8 +384,8 @@ class UIManager:
     def _render(self, final=False):
         # os.system('clear')は毎秒サブプロセスを起動して重いので使わない。
         sys.stdout.write("\033[H\033[J")
-        print("=== JPCC Random Picker v1.4-best-abeja Final Result ===" if final
-              else "=== JPCC Random Picker v1.4-best-abeja ===")
+        print(f"=== JPCC Random Picker {SCRIPT_VERSION} Final Result ===" if final
+              else f"=== JPCC Random Picker {SCRIPT_VERSION} ===")
         with self.lock:
             remain = max(0, int(self.deadline - time.time()))
             print(f"  SUPPLY PASS: {self.current_pass}/{CONFIG['max_passes']}"
@@ -606,9 +634,17 @@ def extract_text(obj: Dict[str, Any]) -> str:
 
 
 def content_has_keyword(text: str) -> bool:
-    # NFKC正規化済みの本文をさらにcasefoldし、大文字小文字の違いを無視して判定する。
-    text_cf = text.casefold()
-    return any(kw in text_cf for kw in KEYWORDS_NFKC)
+    return bool(find_matched_keywords(text))
+
+
+def find_matched_keywords(text: str) -> List[str]:
+    """本文に一致したユーザー指定キーワードを、指定順・元表記で返す。"""
+    text_cf = normalize_for_match(text)
+    return [
+        original
+        for original, kw_cf in KEYWORD_MATCHERS
+        if kw_cf and kw_cf in text_cf
+    ]
 
 
 def worker_process(args: Tuple[int, Tuple[bytes, ...]]) -> List[Dict[str, Any]]:
@@ -628,7 +664,8 @@ def worker_process(args: Tuple[int, Tuple[bytes, ...]]) -> List[Dict[str, Any]]:
 
             if not text:
                 continue
-            if not content_has_keyword(text):
+            matched_keywords = find_matched_keywords(text)
+            if not matched_keywords:
                 continue
             if not (CONFIG["min_len"] <= len(text) <= CONFIG["max_len"]):
                 continue
@@ -638,6 +675,7 @@ def worker_process(args: Tuple[int, Tuple[bytes, ...]]) -> List[Dict[str, Any]]:
                 "id": rid,
                 "url": obj.get("url") or "",
                 "text": text,
+                "matched_keywords": "|".join(matched_keywords),
             })
             hits += 1
 
@@ -713,16 +751,113 @@ def write_rows_atomic(outfile: str, rows: List[Dict[str, Any]]) -> None:
 
     with open(tmp_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
-        writer.writerow(["id", "url", "text", "char_len"])
+        writer.writerow(["id", "url", "text", "char_len", "matched_keywords"])
         for row in rows:
             writer.writerow([
                 row.get("id", ""),
                 row.get("url", ""),
                 row.get("text", ""),
                 row.get("char_len", ""),
+                row.get("matched_keywords", ""),
             ])
 
     os.replace(tmp_path, abs_outfile)
+
+
+def info_path_for_csv(outfile: str) -> str:
+    """CSVと同じ場所に置く*_info.txtのパスを返す。"""
+    root, _ = os.path.splitext(os.path.abspath(outfile))
+    return f"{root}_info.txt"
+
+
+def _one_line(value: Any) -> str:
+    return str(value).replace("\r", " ").replace("\n", " ")
+
+
+def build_run_info_text(
+    outfile: str,
+    infofile: str,
+    *,
+    status: str,
+    rows_written: int,
+    candidates_seen: int,
+    elapsed_sec: float,
+    target_candidates: int,
+    created_at: Optional[str] = None,
+) -> str:
+    """実行条件を人間が読めるテキストとして組み立てる。"""
+    created_at = created_at or datetime.now().astimezone().isoformat(timespec="seconds")
+    lines = [
+        "JPCC-RANDOM-PICKER 実行メモ",
+        "",
+        f"script_version: {SCRIPT_VERSION}",
+        f"created_at: {created_at}",
+        "",
+        "出力ファイル:",
+        f"- CSV: {os.path.abspath(outfile)}",
+        f"- info: {os.path.abspath(infofile)}",
+        "",
+        "検索条件:",
+        "- match_mode: OR",
+        "- normalization: NFKC + casefold",
+        "- keywords:",
+    ]
+    lines.extend(f"  - {_one_line(kw)}" for kw in CONFIG["keywords"])
+    lines.extend([
+        "",
+        "データソース:",
+        f"- dataset: {DATASET_NAME}",
+        f"- bucket: {CONFIG['bucket']}",
+        f"- target_period: {TARGET_PERIOD}",
+        f"- note: {DATA_SOURCE_NOTE}",
+        "",
+        "抽出条件:",
+        f"- limit: {CONFIG['limit']}",
+        f"- oversample_factor: {CONFIG['oversample_factor']}",
+        f"- target_candidates: {target_candidates}",
+        f"- seed: {CONFIG['seed']}",
+        f"- min_len: {CONFIG['min_len']}",
+        f"- max_len: {CONFIG['max_len']}",
+        f"- max_runtime_sec: {CONFIG['max_runtime_sec']}",
+        f"- max_passes: {CONFIG['max_passes']}",
+        "",
+        "結果:",
+        f"- status: {_one_line(status)}",
+        f"- rows_written: {rows_written}",
+        f"- candidates_seen: {candidates_seen}",
+        f"- elapsed_sec: {elapsed_sec:.1f}",
+    ])
+    return "\n".join(lines) + "\n"
+
+
+def write_run_info_atomic(
+    outfile: str,
+    infofile: str,
+    *,
+    status: str,
+    rows_written: int,
+    candidates_seen: int,
+    elapsed_sec: float,
+    target_candidates: int,
+    created_at: Optional[str] = None,
+) -> None:
+    """実行メモを一時ファイルへ書いてから置き換える。"""
+    abs_infofile = os.path.abspath(infofile)
+    out_dir = os.path.dirname(abs_infofile)
+    tmp_path = os.path.join(out_dir, f".{os.path.basename(abs_infofile)}.tmp")
+    text = build_run_info_text(
+        outfile,
+        infofile,
+        status=status,
+        rows_written=rows_written,
+        candidates_seen=candidates_seen,
+        elapsed_sec=elapsed_sec,
+        target_candidates=target_candidates,
+        created_at=created_at,
+    )
+    with open(tmp_path, "w", encoding="utf-8") as f:
+        f.write(text)
+    os.replace(tmp_path, abs_infofile)
 
 
 # ===============================================================
@@ -770,7 +905,7 @@ def parse_user_input():
         return n
 
     p = argparse.ArgumentParser(
-        description="JPCCからキーワードを含む文章をランダム抽出してCSV保存します。"
+        description=f"JPCCからキーワードを含む文章をランダム抽出し、CSVと実行メモを保存します。({SCRIPT_VERSION})"
     )
     p.add_argument("-k", "--keywords", nargs="+",
                    help="検索キーワード(複数指定でOR検索)")
@@ -989,6 +1124,7 @@ def run():
                         "url": res.get("url", ""),
                         "text": safe_text,
                         "char_len": len(safe_text),
+                        "matched_keywords": res.get("matched_keywords", ""),
                     }
                     score = candidate_score(CONFIG["seed"], rid, text_hash)
                     push_candidate(sample_heap, row, score, CONFIG["limit"], unique_candidates_seen)
@@ -1031,9 +1167,22 @@ def run():
     else:
         status = "件数未達(時間上限/データ走査完了/中断)"
 
+    elapsed_sec = time.time() - start
+    infofile = info_path_for_csv(CONFIG["outfile"])
+    write_run_info_atomic(
+        CONFIG["outfile"],
+        infofile,
+        status=status,
+        rows_written=len(rows),
+        candidates_seen=unique_candidates_seen,
+        elapsed_sec=elapsed_sec,
+        target_candidates=target_candidates,
+    )
+
     print(
         f"\n✅ Done [{status}]: {len(rows)} rows -> {CONFIG['outfile']} "
-        f"(candidates={unique_candidates_seen:,}, time={time.time()-start:.1f}s)"
+        f"/ info -> {infofile} "
+        f"(candidates={unique_candidates_seen:,}, time={elapsed_sec:.1f}s)"
     )
     if len(rows) < CONFIG["limit"]:
         print("   ヒント: --max-minutes を増やすか、キーワードを見直してください。")

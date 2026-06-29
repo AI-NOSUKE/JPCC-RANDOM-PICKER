@@ -6,11 +6,11 @@
 
 ABEJA-CC-JA の公開 S3 バケットにある日本語 Common Crawl 由来 JSONL から、指定キーワードを含む文章をランダム性を高めて抽出し、CSV に保存する Python ツールです。
 
-この版は `v1.4-best-abeja` として、データソースを ABEJA-CC-JA 専用に整理しています。巨大な全件データをローカルへ落とさず、S3 上の JSONL / JSONL.GZ を部分的に読みながら候補を集めます。
+現行版は `v1.5-output-info` です。`v1.4-best-abeja` の ABEJA-CC-JA 専用抽出ロジックを維持しつつ、CSV の `matched_keywords` 列と、CSV と同じ場所に保存される `*_info.txt` を追加しています。巨大な全件データをローカルへ落とさず、S3 上の JSONL / JSONL.GZ を部分的に読みながら候補を集めます。
 
 ## 活用例
 
-同種の JPCC 抽出テキストを PVM で分類した例として、[ももクロ関連コメントの分類レポート](https://github.com/AI-NOSUKE/PVM/blob/main/docs/momoclo_report.md) があります。現行の `v1.4-best-abeja` と完全に同じコードによる出力ではありませんが、本ツールで得られるテキストを分析へつなげる用途の参考になります。
+同種の JPCC 抽出テキストを PVM で分類した例として、[ももクロ関連コメントの分類レポート](https://github.com/AI-NOSUKE/PVM/blob/main/docs/momoclo_report.md) があります。現行の `v1.5-output-info` と完全に同じコードによる出力ではありませんが、本ツールで得られるテキストを分析へつなげる用途の参考になります。
 
 ## 特徴
 
@@ -22,7 +22,8 @@ ABEJA-CC-JA の公開 S3 バケットにある日本語 Common Crawl 由来 JSON
 - ダウンロード、JSON 解析、キーワード検索を並列処理
 - 指定件数より多めに候補を見て、決定的乱数スコアで最終件数に絞り込み
 - 実行時間上限に達したとき、件数未達なら延長確認
-- 出力 CSV は `id`, `url`, `text`, `char_len`
+- 出力 CSV は `id`, `url`, `text`, `char_len`, `matched_keywords`
+- CSV と同じ場所に `*_info.txt` を出力し、検索キーワード、実行条件、ABEJA-CC-JA の対象期間を記録
 
 ## 注意
 
@@ -88,8 +89,8 @@ python jpcc-random-picker.py \
 CSV は UTF-8 で保存されます。
 
 ```csv
-id,url,text,char_len
-https://example.com/article,https://example.com/article,本文...,312
+id,url,text,char_len,matched_keywords
+https://example.com/article,https://example.com/article,本文...,312,ももクロ
 ```
 
 | 列 | 内容 |
@@ -98,8 +99,21 @@ https://example.com/article,https://example.com/article,本文...,312
 | `url` | 元データの URL。存在しない場合は空欄 |
 | `text` | 抽出本文。改行は空白に置換 |
 | `char_len` | 本文の文字数 |
+| `matched_keywords` | 本文に一致したユーザー指定キーワード。複数一致時は `|` 区切り |
 
 同一本文は SHA1 ハッシュで重複除去されます。
+
+`matched_keywords` の判定は、既存のキーワード判定と同じく本文とキーワードを `NFKC + casefold` した上で行います。CSV に書かれる表記はユーザーが指定した元のキーワード表記で、順序もユーザー指定順です。
+
+CSV と同じ場所に、人間が読める実行メモ `*_info.txt` も保存されます。
+
+```text
+output.csv -> output_info.txt
+momoclo.csv -> momoclo_info.txt
+results/momoclo.csv -> results/momoclo_info.txt
+```
+
+`*_info.txt` には、スクリプトバージョン、作成時刻、CSV と info の保存先、検索キーワード、`NFKC + casefold` の正規化条件、limit / oversample_factor / seed / 文字数条件 / 時間上限などの抽出条件、ABEJA-CC-JA の対象期間である「2019〜2023年のCommon Crawl由来データ」、書き込み行数、候補確認数、実行時間が記録されます。
 
 ## 高度な設定
 
@@ -127,7 +141,7 @@ https://example.com/article,https://example.com/article,本文...,312
 4. gzip JSONL は先頭からランダム行数をスキップし、その後の一定行を読む
 5. bytes 事前フィルタで候補を絞り、JSON 解析後に NFKC + casefold 済み本文で最終判定
 6. 重複本文を除き、候補ごとに決定的乱数スコアを付ける
-7. `limit * oversample_factor` 件まで候補を確認し、スコアで指定件数に絞って CSV 保存
+7. `limit * oversample_factor` 件まで候補を確認し、スコアで指定件数に絞って CSV と `*_info.txt` を保存
 
 ## トラブルシューティング
 
