@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-JPCC-RANDOM-PICKER v1.5-output-info
+JPCC-RANDOM-PICKER v1.5.0
 
 【概要】
 ABEJA-CC-JA(S3上の日本語Common Crawl由来JSONL)から、
@@ -27,17 +27,6 @@ CSVと実行メモを保存します。
         -o / --outfile              出力CSV (default: output.csv)
         --max-minutes               時間上限・分 (default: 15)
         --oversample-factor         候補を何倍まで集めてから乱数スコアで絞るか (default: 3.0)
-
-【v1.5-output-infoの修正点】
-- v1.4-best-abejaの抽出ロジックを維持しつつ、CSVにmatched_keywords列を追加。
-- CSVと同じ場所に、検索条件・実行条件・結果を記録した*_info.txtを出力。
-
-【v1.4-best-abejaの修正点】
-- データソースをABEJA-CC-JA専用に整理。FineWeb-2関連の分岐・依存を削除。
-- multiprocessing の spawn 環境(macOS/Windows等)でも、CLIで更新したCONFIGがworkerへ渡るよう修正。
-- oversample_factor を導入し、指定件数ぴったりで即停止せず、候補を少し多めに見て乱数スコアで絞れるようにした。
-- 時間上限・走査完了・中断時も、指定件数を満たしていればCSVへ保存して終了する。
-- ABEJA-CC-JAで実用性の高い url / text / char_len をCSVに出力する。
 
 【設計判断】
 - 本ツールは、日本語生活者全体やSNS発話全体の代表サンプルを作るものではありません。
@@ -92,7 +81,7 @@ try:
 except ImportError:
     import json as json_lib
 
-SCRIPT_VERSION = "v1.5-output-info"
+SCRIPT_VERSION = "v1.5.0"
 DATASET_NAME = "ABEJA-CC-JA"
 DATA_BUCKET = "abeja-cc-ja"
 TARGET_PERIOD = "2019〜2023年のCommon Crawl由来データ"

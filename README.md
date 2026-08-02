@@ -6,11 +6,11 @@
 
 ABEJA-CC-JA の公開 S3 バケットにある日本語 Common Crawl 由来 JSONL から、指定キーワードを含む文章をランダム性を高めて抽出し、CSV に保存する Python ツールです。
 
-現行版は `v1.5-output-info` です。`v1.4-best-abeja` の ABEJA-CC-JA 専用抽出ロジックを維持しつつ、CSV の `matched_keywords` 列と、CSV と同じ場所に保存される `*_info.txt` を追加しています。巨大な全件データをローカルへ落とさず、S3 上の JSONL / JSONL.GZ を部分的に読みながら候補を集めます。
+現行版は `v1.5.0` です。巨大な全件データをローカルへ落とさず、S3 上の JSONL / JSONL.GZ を部分的に読みながら候補を集めます。CSV には一致したキーワードを含め、同じ場所に検索条件と実行結果を記録した `*_info.txt` も保存します。
 
 ## 活用例
 
-同種の JPCC 抽出テキストを PVM で分類した例として、[ももクロ関連コメントの分類レポート](https://github.com/AI-NOSUKE/PVM/blob/main/docs/archive/momoclo_report.md) があります。現行の `v1.5-output-info` と完全に同じコードによる出力ではありませんが、本ツールで得られるテキストを分析へつなげる用途の参考になります。
+本ツールで抽出したテキストを PVM で分類した例として、[ももクロ関連コメントの分類レポート](https://github.com/AI-NOSUKE/PVM/blob/main/docs/archive/momoclo_report.md) があります。
 
 ## 特徴
 
