@@ -398,19 +398,19 @@ class UIManager:
             for m in self.logs:
                 print(" ", m)
             print("----------------------------------")
-            print(f"🎯 サンプル保持: {self.total_hits:,} / {CONFIG['limit']:,} 件")
+            print(f"[抽出] サンプル保持: {self.total_hits:,} / {CONFIG['limit']:,} 件")
             if self.target_candidates > CONFIG["limit"]:
-                print(f"🔀 候補確認: {self.candidates_seen:,} / {self.target_candidates:,} 件")
+                print(f"[候補] 候補確認: {self.candidates_seen:,} / {self.target_candidates:,} 件")
             if not final and self.pace_per_min > 0:
                 if self.eta_sec is not None:
                     eta_min = self.eta_sec / 60
-                    mark = "✅ 上限内に到達見込み" if time.time() + self.eta_sec <= self.deadline \
-                        else "⚠️ このペースだと上限内に届きません"
-                    print(f"📈 ペース: {self.pace_per_min:.1f}件/分 | 到達まで約{eta_min:.0f}分 | {mark}")
+                    mark = "[順調] 上限内に到達見込み" if time.time() + self.eta_sec <= self.deadline \
+                        else "[注意] このペースだと上限内に届きません"
+                    print(f"[進捗] ペース: {self.pace_per_min:.1f}件/分 | 到達まで約{eta_min:.0f}分 | {mark}")
                 else:
-                    print(f"📈 ペース: {self.pace_per_min:.1f}件/分")
+                    print(f"[進捗] ペース: {self.pace_per_min:.1f}件/分")
             if final:
-                print("\n✅ 終了しました。")
+                print("\n[完了] 終了しました。")
         sys.stdout.flush()
 
 
@@ -1040,7 +1040,7 @@ def run():
             held = ui.get_held_count()
             if held >= CONFIG["limit"]:
                 # oversample待ちでも時間上限に来たら、指定件数は満たしているので主ループ側で止める。
-                ui.log("⏱ 時間上限に到達。指定件数は満たしているため保存して終了します。")
+                ui.log("[時間] 時間上限に到達。指定件数は満たしているため保存して終了します。")
                 stop_event.set()
                 break
 
@@ -1048,7 +1048,7 @@ def run():
             prompt_timeout = CONFIG["extension_prompt_timeout_sec"]
 
             ui.pause()
-            print(f"⏱ 時間上限に到達しましたが、現在 {held:,} / {CONFIG['limit']:,} 件です。")
+            print(f"[時間] 時間上限に到達しましたが、現在 {held:,} / {CONFIG['limit']:,} 件です。")
             ans = timed_input(
                 f"   あと{ext_min}分延長しますか? [y/N] ({prompt_timeout}秒無応答で自動終了): ",
                 prompt_timeout,
@@ -1058,10 +1058,10 @@ def run():
                 deadline_box[0] = time.time() + ext_min * 60
                 ui.set_deadline(deadline_box[0])
                 ui.resume()
-                ui.log(f"⏩ {ext_min}分延長しました。続行します。")
+                ui.log(f"[延長] {ext_min}分延長しました。続行します。")
             else:
                 ui.resume()
-                ui.log("⏱ 時間上限に到達。途中結果で打ち切ります。")
+                ui.log("[時間] 時間上限に到達。途中結果で打ち切ります。")
                 stop_event.set()
                 break
 
@@ -1133,7 +1133,7 @@ def run():
                     # 指定件数を保持したうえで、oversample分の候補確認まで済んだら停止。
                     if len(sample_heap) >= CONFIG["limit"] and unique_candidates_seen >= target_candidates:
                         ui.log(
-                            f"🎉 候補 {unique_candidates_seen:,} 件を確認。"
+                            f"[到達] 候補 {unique_candidates_seen:,} 件を確認。"
                             f"乱数スコアで {CONFIG['limit']:,} 件に絞って停止します。"
                         )
                         reached = True
@@ -1180,7 +1180,7 @@ def run():
     )
 
     print(
-        f"\n✅ Done [{status}]: {len(rows)} rows -> {CONFIG['outfile']} "
+        f"\n[完了] Done [{status}]: {len(rows)} rows -> {CONFIG['outfile']} "
         f"/ info -> {infofile} "
         f"(candidates={unique_candidates_seen:,}, time={elapsed_sec:.1f}s)"
     )
