@@ -6,7 +6,7 @@
 
 ABEJA-CC-JA の公開 S3 バケットにある日本語 Common Crawl 由来 JSONL から、指定キーワードを含む文章をランダム性を高めて抽出し、CSV に保存する Python ツールです。
 
-現行版は `v1.5.0` です。巨大な全件データをローカルへ落とさず、S3 上の JSONL / JSONL.GZ を部分的に読みながら候補を集めます。CSV には一致したキーワードを含め、同じ場所に検索条件と実行結果を記録した `*_info.txt` も保存します。
+現行版は `v1.5.1` です。巨大な全件データをローカルへ落とさず、S3 上の JSONL / JSONL.GZ を部分的に読みながら候補を集めます。CSV には一致したキーワードを含め、同じ場所に検索条件と実行結果を記録した `*_info.txt` も保存します。
 
 ## 活用例
 
@@ -18,7 +18,7 @@ ABEJA-CC-JA の公開 S3 バケットにある日本語 Common Crawl 由来 JSON
 - 対話モードとコマンドライン引数の両対応
 - 非圧縮 JSONL は S3 Range でランダムなウィンドウだけを読み込み
 - gzip JSONL は疑似ランダム行スキップで部分的に読み込み
-- NFKC 正規化、casefold、半角カナ、全角英数などを考慮したキーワード判定
+- NFKC 正規化、casefold、半角カナ、全角英数、JSONのUnicode escape表記を考慮したキーワード判定
 - ダウンロード、JSON 解析、キーワード検索を並列処理
 - 指定件数より多めに候補を見て、決定的乱数スコアで最終件数に絞り込み
 - 実行時間上限に達したとき、件数未達なら延長確認
@@ -76,7 +76,7 @@ python jpcc-random-picker.py -k ChatGPT 生成AI 人工知能 -n 5000 -o ai_comm
 | `-k`, `--keywords` | 検索キーワード。複数指定で OR 検索 | 対話入力 |
 | `-n`, `--limit` | 最終出力件数 | 対話入力 |
 | `-o`, `--outfile` | 出力 CSV ファイル名 | `output.csv` |
-| `--max-minutes` | 時間上限。超えたら途中結果で打ち切り、件数未達なら延長確認 | `15` |
+| `--max-minutes` | S3ファイル一覧取得後の抽出時間上限。超えたら途中結果で打ち切り、件数未達なら延長確認 | `15` |
 | `--oversample-factor` | 指定件数の何倍まで候補を確認してから絞るか。速度優先なら `1` | `3.0` |
 
 ## 出力形式
@@ -92,7 +92,7 @@ https://example.com/article,https://example.com/article,本文...,312,ももク�
 | --- | --- |
 | `id` | 元データの `id`、なければ `url`、どちらもなければ本文ハッシュ由来の ID |
 | `url` | 元データの URL。存在しない場合は空欄 |
-| `text` | 抽出本文。改行は空白に置換 |
+| `text` | NFKC正規化済みの抽出本文。改行は空白に置換 |
 | `char_len` | 本文の文字数 |
 | `matched_keywords` | 本文に一致したユーザー指定キーワード。複数一致時は `|` 区切り |
 
@@ -107,7 +107,7 @@ output.csv -> output_info.txt
 momoclo.csv -> momoclo_info.txt
 ```
 
-`*_info.txt` には、スクリプトバージョン、作成時刻、CSV と info の保存先、検索キーワード、`NFKC + casefold` の正規化条件、limit / oversample_factor / seed / 文字数条件 / 時間上限などの抽出条件、ABEJA-CC-JA の対象期間である「2019〜2023年のCommon Crawl由来データ」、書き込み行数、候補確認数、実行時間が記録されます。
+`*_info.txt` には、スクリプトバージョン、作成時刻、CSV と info の保存先、検索キーワード、`NFKC + casefold` の正規化条件、limit / oversample_factor / seed / 文字数条件 / 時間上限などの抽出条件、ABEJA-CC-JA の対象期間である「2019〜2023年のCommon Crawl由来データ」、書き込み行数、候補確認数、実行時間が記録されます。診断用に、走査行数、bytes事前フィルタ通過数、JSON解析数、キーワード一致数も残します。
 
 ## 高度な設定
 
@@ -116,7 +116,7 @@ momoclo.csv -> momoclo_info.txt
 | 設定 | 内容 |
 | --- | --- |
 | `min_len` / `max_len` | 抽出対象にする本文文字数の下限・上限 |
-| `seed` | ランダムシード。再現性に使います |
+| `seed` | 観測できた候補集合からの絞り込みを決定的にするシード。時間上限・ネットワーク・並列処理で候補集合自体が変わる場合、出力全体の一致は保証しません |
 | `num_downloaders` | S3 読み込みスレッド数 |
 | `processes` | JSON 解析・判定に使うプロセス数 |
 | `chunk_size` | worker に渡す行数の単位 |
@@ -133,7 +133,7 @@ momoclo.csv -> momoclo_info.txt
 2. ファイル順をシード付きでシャッフル
 3. 非圧縮 JSONL はランダムなバイト範囲を読み、壊れていない JSONL 行だけを使う
 4. gzip JSONL は先頭からランダム行数をスキップし、その後の一定行を読む
-5. bytes 事前フィルタで候補を絞り、JSON 解析後に NFKC + casefold 済み本文で最終判定
+5. 生UTF-8とJSONの `\uXXXX` 表記に対応するbytes事前フィルタで候補を絞り、JSON 解析後に NFKC + casefold 済み本文で最終判定
 6. 重複本文を除き、候補ごとに決定的乱数スコアを付ける
 7. `limit * oversample_factor` 件まで候補を確認し、スコアで指定件数に絞って CSV と `*_info.txt` を保存
 
@@ -154,6 +154,8 @@ python -m pip install -r requirements.txt
 ### ヒット数が少ない
 
 キーワードが ABEJA-CC-JA に少ない、文字数条件に合わない、ランダムに読んだ範囲に十分含まれなかった、などが考えられます。`--max-minutes` や `--oversample-factor`、`CONFIG["max_passes"]` を増やすと見つかる可能性があります。
+
+`*_info.txt` の `lines_scanned`、`prefilter_passed`、`json_decoded`、`keyword_hits` を見ると、走査・事前フィルタ・JSON解析・最終判定のどこまで進んだか確認できます。
 
 ## ライセンス
 
