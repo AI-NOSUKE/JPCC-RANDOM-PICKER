@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-JPCC-RANDOM-PICKER v1.5.0
+JPCC-RANDOM-PICKER v1.5.1
 
 【概要】
 ABEJA-CC-JA(S3上の日本語Common Crawl由来JSONL)から、
@@ -50,6 +50,7 @@ CSVと実行メモを保存します。
 import os
 import sys
 import csv
+import json
 import gzip
 import time
 import hashlib
@@ -61,6 +62,7 @@ import itertools
 import heapq
 import queue
 import threading
+import tempfile
 from datetime import datetime
 from typing import List, Dict, Any, Generator, Tuple, Optional
 
@@ -81,7 +83,7 @@ try:
 except ImportError:
     import json as json_lib
 
-SCRIPT_VERSION = "v1.5.0"
+SCRIPT_VERSION = "v1.5.1"
 DATASET_NAME = "ABEJA-CC-JA"
 DATA_BUCKET = "abeja-cc-ja"
 TARGET_PERIOD = "2019〜2023年のCommon Crawl由来データ"
@@ -201,10 +203,11 @@ def _to_fullwidth_ascii(s: str) -> str:
 
 
 def keyword_byte_variants(keywords: List[str]) -> List[bytes]:
-    """事前フィルタ用に、各キーワードの表記変種をUTF-8バイト列で列挙する。
+    r"""事前フィルタ用に、各キーワードの表記変種をUTF-8バイト列で列挙する。
 
     対象: 原文 / NFKC形 / 半角カナ形 / 全角英数形 / 半角カナ+全角英数形、
-    およびそれぞれの小文字形・大文字形(Z/z、Ｚ/ｚ など)。
+    およびそれぞれの小文字形・大文字形(Z/z、Ｚ/ｚ など)。JSON内で
+    非ASCII文字が ``\uXXXX`` へescapeされた表記（hex小文字/大文字）も含む。
     最終判定はNFKC+casefold本文で行うため、ここは「落とさないための網」であり
     厳密一致である必要はない。
     """
@@ -226,6 +229,19 @@ def keyword_byte_variants(keywords: List[str]) -> List[bytes]:
         for f in case_forms:
             if f:
                 variants.add(f.encode("utf-8"))
+                escaped = json.dumps(f, ensure_ascii=True)[1:-1]
+                escaped_lower = re.sub(
+                    r"\\u([0-9A-Fa-f]{4})",
+                    lambda m: "\\u" + m.group(1).lower(),
+                    escaped,
+                )
+                escaped_upper = re.sub(
+                    r"\\u([0-9A-Fa-f]{4})",
+                    lambda m: "\\u" + m.group(1).upper(),
+                    escaped,
+                )
+                variants.add(escaped_lower.encode("ascii"))
+                variants.add(escaped_upper.encode("ascii"))
     return sorted(variants)
 
 
@@ -267,13 +283,20 @@ def initializer(status_q, config_snapshot: Dict[str, Any]):
 # UI
 # ===============================================================
 class UIManager:
-    def __init__(self, num_workers: int, status_queue, deadline: float):
+    def __init__(self, num_workers: int, status_queue, deadline: Optional[float]):
         self.num_workers = num_workers
         self.status_queue = status_queue
         self.deadline = deadline
         self.lock = threading.Lock()
         self.worker_stats = {
-            i: {"lines": 0, "hits": 0, "errors": 0}
+            i: {
+                "lines": 0,
+                "prefilter_passed": 0,
+                "json_decoded": 0,
+                "keyword_hits": 0,
+                "hits": 0,
+                "errors": 0,
+            }
             for i in range(num_workers)
         }
         self.logs = []
@@ -318,6 +341,9 @@ class UIManager:
     def stop(self):
         self._stop.set()
         self._thread.join()
+        # A worker can enqueue its last update immediately before the UI loop
+        # stops. Drain once more so the final screen and run info agree.
+        self.update_from_queue()
         self._render(final=True)
 
     def log(self, msg):
@@ -332,12 +358,24 @@ class UIManager:
                 wid = update["id"]
                 with self.lock:
                     self.worker_stats[wid]["lines"] += update.get("lines", 0)
+                    self.worker_stats[wid]["prefilter_passed"] += update.get("prefilter_passed", 0)
+                    self.worker_stats[wid]["json_decoded"] += update.get("json_decoded", 0)
+                    self.worker_stats[wid]["keyword_hits"] += update.get("keyword_hits", 0)
                     self.worker_stats[wid]["hits"] += update.get("hits", 0)
                     self.worker_stats[wid]["errors"] += update.get("errors", 0)
             except queue.Empty:
                 break
             except Exception:
                 break
+
+    def worker_totals(self) -> Dict[str, int]:
+        """全workerの診断カウンタをスナップショットとして返す。"""
+        with self.lock:
+            keys = ("lines", "prefilter_passed", "json_decoded", "keyword_hits", "hits", "errors")
+            return {
+                key: sum(int(stats.get(key, 0)) for stats in self.worker_stats.values())
+                for key in keys
+            }
 
     def set_sample_size(self, n: int):
         with self.lock:
@@ -376,10 +414,12 @@ class UIManager:
         print(f"=== JPCC Random Picker {SCRIPT_VERSION} Final Result ===" if final
               else f"=== JPCC Random Picker {SCRIPT_VERSION} ===")
         with self.lock:
-            remain = max(0, int(self.deadline - time.time()))
+            deadline = self.deadline
+            remain = None if deadline is None else max(0, int(deadline - time.time()))
+            remain_text = "抽出開始前" if remain is None else f"{remain // 60}m{remain % 60:02d}s"
             print(f"  SUPPLY PASS: {self.current_pass}/{CONFIG['max_passes']}"
                   f"  | FILE WINDOWS: {self.files_processed} / {self.total_files}"
-                  f"  | 残り時間上限: {remain//60}m{remain%60:02d}s")
+                  f"  | 残り時間上限: {remain_text}")
             for i in range(self.num_workers):
                 s = self.worker_stats[i]
                 print(f"  [WORKER {i:02d}] | Lines:{s['lines']:>8,} | Hits:{s['hits']:>6,} | Errors:{s['errors']:>3,}")
@@ -393,7 +433,7 @@ class UIManager:
             if not final and self.pace_per_min > 0:
                 if self.eta_sec is not None:
                     eta_min = self.eta_sec / 60
-                    mark = "[順調] 上限内に到達見込み" if time.time() + self.eta_sec <= self.deadline \
+                    mark = "[順調] 上限内に到達見込み" if deadline is not None and time.time() + self.eta_sec <= deadline \
                         else "[注意] このペースだと上限内に届きません"
                     print(f"[進捗] ペース: {self.pace_per_min:.1f}件/分 | 到達まで約{eta_min:.0f}分 | {mark}")
                 else:
@@ -639,6 +679,9 @@ def find_matched_keywords(text: str) -> List[str]:
 def worker_process(args: Tuple[int, Tuple[bytes, ...]]) -> List[Dict[str, Any]]:
     wid, lines_batch = args
     results = []
+    prefilter_passed = 0
+    json_decoded = 0
+    keyword_hits = 0
     hits = 0
     err = 0
 
@@ -646,9 +689,11 @@ def worker_process(args: Tuple[int, Tuple[bytes, ...]]) -> List[Dict[str, Any]]:
         # 変種込みbytes事前フィルタ(高速化)。最終判定はNFKC本文で行う。
         if PAT_BYTES is not None and not PAT_BYTES.search(raw):
             continue
+        prefilter_passed += 1
 
         try:
             obj = json_lib.loads(raw)
+            json_decoded += 1
             text = extract_text(obj)
 
             if not text:
@@ -656,6 +701,7 @@ def worker_process(args: Tuple[int, Tuple[bytes, ...]]) -> List[Dict[str, Any]]:
             matched_keywords = find_matched_keywords(text)
             if not matched_keywords:
                 continue
+            keyword_hits += 1
             if not (CONFIG["min_len"] <= len(text) <= CONFIG["max_len"]):
                 continue
 
@@ -672,7 +718,15 @@ def worker_process(args: Tuple[int, Tuple[bytes, ...]]) -> List[Dict[str, Any]]:
             err += 1
             continue
 
-    G_STATUS_QUEUE.put({"id": wid, "lines": len(lines_batch), "hits": hits, "errors": err})
+    G_STATUS_QUEUE.put({
+        "id": wid,
+        "lines": len(lines_batch),
+        "prefilter_passed": prefilter_passed,
+        "json_decoded": json_decoded,
+        "keyword_hits": keyword_hits,
+        "hits": hits,
+        "errors": err,
+    })
     return results
 
 
@@ -753,6 +807,27 @@ def write_rows_atomic(outfile: str, rows: List[Dict[str, Any]]) -> None:
     os.replace(tmp_path, abs_outfile)
 
 
+def validate_output_destination(outfile: str) -> str:
+    """長い走査を始める前に、出力先が既存の書き込み可能フォルダか確認する。"""
+    abs_outfile = os.path.abspath(outfile)
+    out_dir = os.path.dirname(abs_outfile)
+    if not os.path.isdir(out_dir):
+        raise ValueError(
+            f"出力先フォルダがありません: {out_dir}。"
+            "先にフォルダを作るか、既存フォルダ内のファイル名を指定してください。"
+        )
+    if os.path.isdir(abs_outfile):
+        raise ValueError(f"出力先がフォルダを指しています。CSVファイル名を指定してください: {abs_outfile}")
+    if os.path.exists(abs_outfile) and not os.access(abs_outfile, os.W_OK):
+        raise ValueError(f"既存の出力ファイルへ書き込めません: {abs_outfile}")
+    try:
+        with tempfile.NamedTemporaryFile(prefix=".jpcc-write-test-", dir=out_dir):
+            pass
+    except OSError as exc:
+        raise ValueError(f"出力先フォルダへ書き込めません: {out_dir} ({exc})") from exc
+    return abs_outfile
+
+
 def info_path_for_csv(outfile: str) -> str:
     """CSVと同じ場所に置く*_info.txtのパスを返す。"""
     root, _ = os.path.splitext(os.path.abspath(outfile))
@@ -772,10 +847,12 @@ def build_run_info_text(
     candidates_seen: int,
     elapsed_sec: float,
     target_candidates: int,
+    scan_stats: Optional[Dict[str, int]] = None,
     created_at: Optional[str] = None,
 ) -> str:
     """実行条件を人間が読めるテキストとして組み立てる。"""
     created_at = created_at or datetime.now().astimezone().isoformat(timespec="seconds")
+    scan_stats = scan_stats or {}
     lines = [
         "JPCC-RANDOM-PICKER 実行メモ",
         "",
@@ -814,6 +891,12 @@ def build_run_info_text(
         f"- status: {_one_line(status)}",
         f"- rows_written: {rows_written}",
         f"- candidates_seen: {candidates_seen}",
+        f"- lines_scanned: {int(scan_stats.get('lines', 0))}",
+        f"- prefilter_passed: {int(scan_stats.get('prefilter_passed', 0))}",
+        f"- json_decoded: {int(scan_stats.get('json_decoded', 0))}",
+        f"- keyword_hits: {int(scan_stats.get('keyword_hits', 0))}",
+        f"- length_qualified_hits: {int(scan_stats.get('hits', 0))}",
+        f"- parse_errors: {int(scan_stats.get('errors', 0))}",
         f"- elapsed_sec: {elapsed_sec:.1f}",
     ])
     return "\n".join(lines) + "\n"
@@ -828,6 +911,7 @@ def write_run_info_atomic(
     candidates_seen: int,
     elapsed_sec: float,
     target_candidates: int,
+    scan_stats: Optional[Dict[str, int]] = None,
     created_at: Optional[str] = None,
 ) -> None:
     """実行メモを一時ファイルへ書いてから置き換える。"""
@@ -842,6 +926,7 @@ def write_run_info_atomic(
         candidates_seen=candidates_seen,
         elapsed_sec=elapsed_sec,
         target_candidates=target_candidates,
+        scan_stats=scan_stats,
         created_at=created_at,
     )
     with open(tmp_path, "w", encoding="utf-8") as f:
@@ -940,8 +1025,12 @@ def parse_user_input():
 # ===============================================================
 def run():
     parse_user_input()
+    try:
+        CONFIG["outfile"] = validate_output_destination(CONFIG["outfile"])
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from None
 
-    deadline_box = [time.time() + CONFIG["max_runtime_sec"]]
+    deadline_box: List[Optional[float]] = [None]
 
     manager = Manager()
     status_q = manager.Queue()
@@ -992,6 +1081,11 @@ def run():
         print("データソースのファイル一覧を取得できませんでした。ネットワークと依存パッケージを確認してください。")
         sys.exit(1)
 
+    # S3の一覧取得時間は抽出時間上限へ含めない。ここを抽出の共通起点にする。
+    start = time.time()
+    deadline_box[0] = start + CONFIG["max_runtime_sec"]
+    ui.set_deadline(deadline_box[0])
+
     target_candidates = max(CONFIG["limit"], int(round(CONFIG["limit"] * CONFIG["oversample_factor"])))
     ui.set_target_candidates(target_candidates)
     ui.set_total_files(len(all_objects) * CONFIG["max_passes"])
@@ -1023,7 +1117,7 @@ def run():
     # 上限到達時に件数未達なら、延長するかをユーザーに確認する(無応答なら自動終了)。
     def watchdog():
         while not stop_event.wait(1):
-            if time.time() < deadline_box[0]:
+            if deadline_box[0] is not None and time.time() < deadline_box[0]:
                 continue
 
             held = ui.get_held_count()
@@ -1063,7 +1157,6 @@ def run():
         f"oversample:{CONFIG['oversample_factor']:.1f}x)"
     )
 
-    start = time.time()
     seen_hashes = set()
     sample_heap: List[Tuple[int, int, Dict[str, Any]]] = []
     unique_candidates_seen = 0
@@ -1149,6 +1242,8 @@ def run():
         ui.set_candidate_count(unique_candidates_seen)
         ui.stop()
 
+    scan_stats = ui.worker_totals()
+
     if reached:
         status = "指定候補数に到達"
     elif len(rows) >= CONFIG["limit"]:
@@ -1166,6 +1261,7 @@ def run():
         candidates_seen=unique_candidates_seen,
         elapsed_sec=elapsed_sec,
         target_candidates=target_candidates,
+        scan_stats=scan_stats,
     )
 
     print(
