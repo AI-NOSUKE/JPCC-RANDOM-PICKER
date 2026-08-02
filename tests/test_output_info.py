@@ -89,7 +89,7 @@ class OutputInfoTests(unittest.TestCase):
             )
 
             info_text = infofile.read_text(encoding="utf-8")
-            self.assertIn("script_version: v1.5-output-info", info_text)
+            self.assertIn("script_version: v1.5.0", info_text)
             self.assertIn("- normalization: NFKC + casefold", info_text)
             self.assertIn("  - ももクロ", info_text)
             self.assertIn("- target_period: 2019〜2023年のCommon Crawl由来データ", info_text)
