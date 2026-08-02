@@ -10,7 +10,7 @@ ABEJA-CC-JA の公開 S3 バケットにある日本語 Common Crawl 由来 JSON
 
 ## 活用例
 
-同種の JPCC 抽出テキストを PVM で分類した例として、[ももクロ関連コメントの分類レポート](https://github.com/AI-NOSUKE/PVM/blob/main/docs/momoclo_report.md) があります。現行の `v1.5-output-info` と完全に同じコードによる出力ではありませんが、本ツールで得られるテキストを分析へつなげる用途の参考になります。
+同種の JPCC 抽出テキストを PVM で分類した例として、[ももクロ関連コメントの分類レポート](https://github.com/AI-NOSUKE/PVM/blob/main/docs/archive/momoclo_report.md) があります。現行の `v1.5-output-info` と完全に同じコードによる出力ではありませんが、本ツールで得られるテキストを分析へつなげる用途の参考になります。
 
 ## 特徴
 
@@ -49,29 +49,24 @@ python -m pip install -r requirements.txt
 
 ## 使い方
 
-対話モード:
+通常は、引数なしで実行します。
 
 ```bash
 python jpcc-random-picker.py
 ```
 
-実行すると、検索キーワードと抽出件数を聞かれます。複数キーワードはスペース、カンマ、読点で区切ると OR 検索になります。
+検索キーワードと抽出件数を聞かれます。複数キーワードはスペース、カンマ、読点で区切ると OR 検索になります。結果は実行したフォルダの `output.csv` と `output_info.txt` に保存されます。
 
-引数モード:
+質問への入力を省略したい場合は、キーワードと件数を引数で指定できます。
 
 ```bash
-python jpcc-random-picker.py -k ももクロ ももいろクローバーZ -n 1000 -o output.csv
+python jpcc-random-picker.py -k ももクロ ももいろクローバーZ -n 1000
 ```
 
 時間上限や候補確認数を指定する例:
 
 ```bash
-python jpcc-random-picker.py \
-  -k ChatGPT 生成AI 人工知能 \
-  -n 5000 \
-  -o ai_comments.csv \
-  --max-minutes 20 \
-  --oversample-factor 3
+python jpcc-random-picker.py -k ChatGPT 生成AI 人工知能 -n 5000 -o ai_comments.csv --max-minutes 20 --oversample-factor 3
 ```
 
 ### オプション
@@ -110,7 +105,6 @@ CSV と同じ場所に、人間が読める実行メモ `*_info.txt` も保存�
 ```text
 output.csv -> output_info.txt
 momoclo.csv -> momoclo_info.txt
-results/momoclo.csv -> results/momoclo_info.txt
 ```
 
 `*_info.txt` には、スクリプトバージョン、作成時刻、CSV と info の保存先、検索キーワード、`NFKC + casefold` の正規化条件、limit / oversample_factor / seed / 文字数条件 / 時間上限などの抽出条件、ABEJA-CC-JA の対象期間である「2019〜2023年のCommon Crawl由来データ」、書き込み行数、候補確認数、実行時間が記録されます。

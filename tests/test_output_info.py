@@ -1,6 +1,10 @@
 import csv
+import io
 import importlib.util
+import queue
+import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -90,6 +94,28 @@ class OutputInfoTests(unittest.TestCase):
             self.assertIn("  - ももクロ", info_text)
             self.assertIn("- target_period: 2019〜2023年のCommon Crawl由来データ", info_text)
             self.assertIn("- rows_written: 1", info_text)
+
+    def test_ui_can_render_with_windows_cp932_output(self):
+        jpcc.CONFIG.update({"limit": 10, "max_passes": 3})
+        ui = jpcc.UIManager(1, queue.Queue(), time.time() + 60)
+        ui.set_sample_size(1)
+        ui.set_target_candidates(30)
+        ui.set_candidate_count(3)
+        ui.set_pace(2.0, 60.0)
+        ui.log("[到達] 候補を確認しました。")
+
+        raw = io.BytesIO()
+        output = io.TextIOWrapper(raw, encoding="cp932")
+        original_stdout = sys.stdout
+        try:
+            sys.stdout = output
+            ui._render(final=True)
+            output.flush()
+        finally:
+            sys.stdout = original_stdout
+
+        rendered = raw.getvalue().decode("cp932")
+        self.assertIn("[完了] 終了しました。", rendered)
 
 
 if __name__ == "__main__":
