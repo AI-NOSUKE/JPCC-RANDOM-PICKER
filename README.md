@@ -94,7 +94,7 @@ https://example.com/article,https://example.com/article,本文...,312,ももク�
 | `url` | 元データの URL。存在しない場合は空欄 |
 | `text` | NFKC正規化済みの抽出本文。改行は空白に置換 |
 | `char_len` | 本文の文字数 |
-| `matched_keywords` | 本文に一致したユーザー指定キーワード。複数一致時は `|` 区切り |
+| `matched_keywords` | 本文に一致したユーザー指定キーワード。複数一致時は `\|` 区切り |
 
 同一本文は SHA1 ハッシュで重複除去されます。
 
